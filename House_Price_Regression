@@ -1,0 +1,90 @@
+library(data.table)
+library(rvest)
+
+rawDataDir = "/Users/kritikasenthil/Desktop/Junior Year/STAT 380/House Price Null - All Files"
+interimDataDir = "/Users/kritikasenthil/Desktop/Junior Year/STAT 380/House Price Null - All Files"
+externalDataDir = "/Users/kritikasenthil/Desktop/Junior Year/STAT 380/House Price Null - All Files"
+
+DT = fread(file.path(rawDataDir, "Stat_380_train.csv"))
+
+sub_DT = DT[!is.na(DT$SalePrice)][, .(Id, SalePrice,OverallQual, OverallCond, YearBuilt)]
+
+sub_DT
+
+n = nrow(sub_DT)
+idx = sample(1:n, n / 2)
+
+train = sub_DT[!idx]
+test  = sub_DT[ idx]
+
+saveRDS(train, file = file.path(interimDataDir, "Stat_380_train.rds"))
+saveRDS(test, file = file.path(interimDataDir, "Stat_380_test.rds"))
+
+library(caret)
+library(data.table)
+library(Metrics)
+
+rawDataDir = "/Users/kritikasenthil/Desktop/Junior Year/STAT 380/House Price Null - All Files"
+interimDataDir = "/Users/kritikasenthil/Desktop/Junior Year/STAT 380/House Price Null - All Files"
+externalDataDir = "/Users/kritikasenthil/Desktop/Junior Year/STAT 380/House Price Null - All Files"
+modelDir = "/Users/kritikasenthil/Desktop/Junior Year/STAT 380/House Price Null - All Files"
+processedDataDir = "/Users/kritikasenthil/Desktop/Junior Year/STAT 380/House Price Null - All Files"
+
+train = readRDS(file.path(interimDataDir, "Stat_380_train.rds"))
+test = readRDS(file.path(interimDataDir, "Stat_380_test.rds"))
+test
+train
+train_y = train$SalePrice
+test_y  = test$SalePrice
+
+dummies = dummyVars(SalePrice ~ ., data = train) 
+
+train = as.data.table(predict(dummies, newdata = train))
+test  = as.data.table(predict(dummies, newdata = test))
+
+train[, SalePrice := train_y]
+
+colnames(train)
+colnames(test)
+
+
+lm_model <- lm(SalePrice ~ ., data = train)
+
+
+summary(lm_model)
+
+
+saveRDS(dummies, file = file.path(modelDir, "dummies.rds"))
+saveRDS(lm_model, file = file.path(modelDir, "lm_model.rds"))
+
+test$SalePrice = predict(lm_model, newdata = test)
+
+
+submitlm = test[, .(Id, SalePrice)]
+submitlm
+
+nrow(submitlm); nrow(test)
+
+missingId = setdiff(test$Id, submitlm$Id)
+missingDT = data.table(Id = missingId, combo.saleprice = train$avg.saleprice[1]) # This is a data table of the missing values
+
+submitlm = rbind(submitlm, missingDT)
+setkey(submitlm, Id)
+
+colnames(submitlm)[2] = "SalePrice"
+
+submitlm
+
+fwrite(submitlm, file = file.path(processedDataDir, "submitlm.csv"))
+
+#Train Model compared against averge
+rmse(train_y, rep(mean(train_y), length(train_y)))
+
+#Train Model compared against fitted model
+rmse(train_y, lm_model$fitted.values)
+
+#Test Model compared against averge
+rmse(test_y, rep(mean(train_y), length(test_y)))
+
+#Test Model compared against fitted model
+rmse(test_y, submitlm$SalePrice)
