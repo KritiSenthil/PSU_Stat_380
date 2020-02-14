@@ -1,0 +1,23 @@
+library(data.table)
+setwd("/Users/kritikasenthil/Desktop/Junior Year/STAT 380/Coin Flip Regression - All Files")
+getwd()
+
+test = fread("test_file.csv")
+train = fread("train_file.csv")
+
+fit = glm(result ~ V1 + V2 + V3 + V4 + V5 + V6 + V8 + V7 + V9 + V9 + V10 , data = train, family = binomial) 
+summary(fit)
+
+coef(fit) #same thing
+
+probs = predict(fit, type = "response")
+probs
+
+probs = predict(fit, test, type = "response")
+probs
+
+submit = data.table(id = test$id,
+                    result = probs)
+submit
+
+fwrite(submit, file = file.path("submit.csv"))
